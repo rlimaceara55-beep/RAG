@@ -1,0 +1,119 @@
+# ESPECIFICAÇÃO DE ARQUITETURA E TECNOLOGIAS - PROJETO RAG DIDÁTICO
+
+## 1. VISÃO GERAL
+Sistema RAG (Retrieval-Augmented Generation) didático e observável para fins educacionais, demonstrando visualmente cada etapa do pipeline: da ingestão e extração de Notas Fiscais em PDF até a consulta com recuperação vetorial e geração de resposta contextualizada.
+
+Identidade visual: RAG + Teophilo
+
+---
+
+## 2. STACK TECNOLÓGICO
+
+### Frontend
+- HTML5 semântico
+- CSS3 moderno (paleta dark mode refinada, glassmorphism, design responsivo, animações e micro-interações)
+- JavaScript Vanilla (modular, sem frameworks pesados, foco em desempenho e didática clara)
+- Interface inspirada em chat moderno (ChatGPT) com painel expansivo de rastreabilidade (observabilidade do pipeline)
+
+### Backend
+- Linguagem: Python 3.13+
+- Framework Web: FastAPI
+- Servidor ASGI: Uvicorn
+- Validação e Schemas: Pydantic v2
+- Configurações e Ambientes: python-dotenv
+
+### Processamento de Documentos e OCR
+- Leitura e Extração de PDF: pdfplumber, pypdf
+- Geração de PDFs Fictícios: reportlab
+- Estruturação tabular de dados fiscais (NF-e)
+
+### Pipeline RAG & IA
+- Tokenização Didática: tiktoken (cl100k_base / o200k_base)
+- Chunking: Chunking semântico/estruturado por parágrafo/seção com metadados de nota fiscal
+- Embeddings: FastEmbed (FlagEmbedding)
+  * Modelo: BAAI/bge-small-en-v1.5
+  * Dimensão: 384 dimensões
+  * Execução local (CPU otimizada via ONNX Runtime, sem necessidade de GPU)
+- Banco de Dados Vetorial: Supabase PostgreSQL + extensão pgvector
+- Retrieval: Busca por similaridade vetorial (Cosine Distance) com top_k = 5
+- Regra Anti-Alucinação: Ausência de candidatos relevantes retorna estritamente "Sem dados disponiveis na base"
+- LLM Service: OpenRouter API (utilizando modelo configurável via .env, padrão: google/gemini-2.0-flash-001)
+
+---
+
+## 3. ESTRUTURA DO BANCO DE DADOS (SUPABASE + PGVECTOR)
+
+### Extensão
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+### Tabelas Principais
+1. `documentos`:
+   - id UUID PRIMARY KEY
+   - numero_nota TEXT
+   - data_emissao TEXT
+   - fornecedor TEXT
+   - cnpj TEXT
+   - cliente TEXT
+   - valor_total NUMERIC
+   - dados_tabulares JSONB
+   - texto_extraido TEXT
+   - created_at TIMESTAMPTZ DEFAULT now()
+
+2. `chunks`:
+   - id UUID PRIMARY KEY
+   - documento_id UUID REFERENCES documentos(id) ON DELETE CASCADE
+   - numero_nota TEXT
+   - chunk_index INT
+   - conteudo TEXT
+   - token_count INT
+   - tokens JSONB
+   - embedding vector(384)
+   - metadata JSONB
+   - created_at TIMESTAMPTZ DEFAULT now()
+
+3. Função de Busca Vetorial:
+   - `match_chunks(query_embedding vector(384), match_threshold float, match_count int, filter_doc_id text)`
+
+---
+
+## 4. ESTRUTURA DE DIRETÓRIOS DO PROJETO
+
+```
+rag/
+├── .env                  # Credenciais sensíveis (SUPABASE_URL, SUPABASE_KEY, OPENROUTER_API_KEY)
+├── .env.example          # Modelo de configuração sem credenciais
+├── rag.txt               # Especificação técnica e arquitetural
+├── prompt.txt            # Prompt mestre do projeto
+├── requirements.txt      # Dependências Python do projeto
+├── scripts/
+│   ├── test_supabase.py            # Teste de conectividade seguro
+│   ├── generate_sample_invoices.py # Gerador dos 4 PDFs fictícios de notas fiscais
+│   └── setup_database.sql         # Script SQL com schema e funções pgvector
+├── backend/
+│   ├── __init__.py
+│   ├── main.py                     # Ponto de entrada FastAPI
+│   ├── config.py                   # Carregamento seguro do .env
+│   ├── database.py                 # Conexão com Supabase
+│   ├── services/
+│   │   ├── ocr_extractor.py        # Extração de texto e campos de NF
+│   │   ├── tabular_structurer.py   # Estruturação tabular
+│   │   ├── chunker.py              # Divisão de texto em chunks com metadados
+│   │   ├── tokenizer.py            # Tokenização explícita e didática
+│   │   ├── embedder.py             # Geração de embeddings com FastEmbed
+│   │   ├── retriever.py            # Busca vetorial no Supabase (top_k=5)
+│   │   ├── prompt_builder.py       # Montagem do prompt aumentado
+│   │   └── llm_client.py           # Chamada ao OpenRouter
+│   └── routers/
+│       ├── ingestion.py            # Endpoints de upload e ingestão
+│       ├── query.py                # Endpoints de consulta RAG
+│       └── health.py               # Healthcheck e status
+├── frontend/
+│   ├── index.html                  # Interface do usuário (Chat + Visualizador de Pipeline)
+│   ├── styles.css                  # Estilos modernos e didáticos
+│   └── app.js                      # Lógica do chat, seleção de base e renderização de etapas
+└── data/
+    ├── samples/                    # Onde ficam os 4 PDFs fictícios gerados
+    └── uploads/                    # Diretório temporário de upload
+```
