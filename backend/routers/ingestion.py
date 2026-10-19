@@ -16,8 +16,17 @@ from backend.config import BASE_DIR, is_supabase_configured
 router = APIRouter(prefix="/api/ingest", tags=["Ingestão"])
 
 SAMPLES_DIR = BASE_DIR / "data" / "samples"
-UPLOADS_DIR = BASE_DIR / "data" / "uploads"
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+RAW_DIR = BASE_DIR / "documentos" / "raw"
+GOLD_DIR = BASE_DIR / "documentos" / "gold"
+RAW_DIR.mkdir(parents=True, exist_ok=True)
+GOLD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def move_file_to_gold(file_path: str) -> str:
+    """Move o arquivo da pasta raw para gold após persistência bem-sucedida."""
+    destination = GOLD_DIR / os.path.basename(file_path)
+    shutil.move(file_path, destination)
+    return str(destination)
 
 class SampleIngestRequest(BaseModel):
     sample_filename: str
@@ -91,6 +100,8 @@ def run_ingestion_pipeline(file_path: str) -> dict:
             db_client.insert_document(doc_record)
             db_client.insert_chunks(db_chunks)
             db_status = "Persistido com sucesso no Supabase PostgreSQL + PGVECTOR"
+            final_path = move_file_to_gold(file_path)
+            file_path = final_path
         except Exception as e:
             db_status = f"Erro na gravação no Supabase: {str(e)}"
             
@@ -189,8 +200,8 @@ async def upload_and_process_invoice(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF são permitidos.")
         
-    save_path = UPLOADS_DIR / f"{uuid.uuid4()}_{file.filename}"
+    save_path = RAW_DIR / f"{uuid.uuid4()}_{file.filename}"
     with open(save_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-        
+
     return run_ingestion_pipeline(str(save_path))
