@@ -12,6 +12,7 @@ def test_connection():
         sys.exit(1)
         
     try:
+        # pyrefly: ignore[missing-import]
         from dotenv import load_dotenv
         load_dotenv(env_path)
     except ImportError:
@@ -24,7 +25,13 @@ def test_connection():
                     os.environ[key.strip()] = val.strip().strip("'\"")
 
     supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    supabase_key = (
+        os.environ.get("SUPABASE_KEY")
+        or os.environ.get("SUPABASE_SECRET_KEY")
+        or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or os.environ.get("SUPABASE_ANON_KEY")
+        or os.environ.get("SUPABASE_PUBLISHABLE_KEY")
+    )
 
     if not supabase_url or not supabase_key:
         print("SUPABASE: falha na conexão")
